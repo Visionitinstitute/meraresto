@@ -327,3 +327,30 @@ CREATE POLICY "Authenticated users can delete storage"
     ON storage.objects FOR DELETE
     TO authenticated
     USING (bucket_id IN ('hotel-logos', 'menu-images'));
+
+-- ==========================================================
+-- 8. PLATFORM SETTINGS (Super Admin configuration & System flags)
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read platform_settings"
+    ON public.platform_settings FOR SELECT
+    USING (true);
+
+CREATE POLICY "Allow upsert platform_settings"
+    ON public.platform_settings FOR ALL
+    USING (true)
+    WITH CHECK (true);
+
+-- Insert default Super Admin master PIN ('admin786')
+INSERT INTO public.platform_settings (key, value, description)
+VALUES ('super_admin_pin', 'admin786', 'Master Super Admin Security Key for MeraResto Portal')
+ON CONFLICT (key) DO NOTHING;
+

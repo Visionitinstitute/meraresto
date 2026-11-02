@@ -51,3 +51,6 @@ next-env.d.ts
 QResto_Plan.md
 FEATURES_SUMMARY.md
 docs/
+
+# local server data
+data/

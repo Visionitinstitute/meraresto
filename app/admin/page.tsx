@@ -30,6 +30,7 @@ import {
   EyeOff,
   LogOut,
   AlertCircle,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -51,9 +52,13 @@ export default function SuperAdminPortalPage() {
   const [passcode, setPasscode] = useState("");
   const [showPasscode, setShowPasscode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+
   const [isChangePinModalOpen, setIsChangePinModalOpen] = useState(false);
   const [newPin, setNewPin] = useState("");
   const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
+  const [pinChangeMessage, setPinChangeMessage] = useState("");
+  const [isUpdatingPin, setIsUpdatingPin] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [restaurants, setRestaurants] = useState<RestaurantAdminStats[]>([]);
@@ -69,20 +74,31 @@ export default function SuperAdminPortalPage() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
-    const validPin = localStorage.getItem("meraresto_super_admin_pin") || "admin786";
-    if (
-      passcode.trim() === validPin ||
-      passcode.trim() === "meraresto786" ||
-      passcode.trim() === "admin786"
-    ) {
-      sessionStorage.setItem("meraresto_super_admin_auth", "true");
-      setIsAuthenticated(true);
-      setPasscode("");
-    } else {
-      setAuthError("Incorrect Master Passcode. Default is 'admin786'.");
+    setIsVerifying(true);
+
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: passcode.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.authenticated) {
+        sessionStorage.setItem("meraresto_super_admin_auth", "true");
+        setIsAuthenticated(true);
+        setPasscode("");
+      } else {
+        setAuthError(data.error || "Incorrect Master Passcode. Default is 'admin786'.");
+      }
+    } catch {
+      setAuthError("Could not connect to server. Please try again.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -91,19 +107,39 @@ export default function SuperAdminPortalPage() {
     setIsAuthenticated(false);
   };
 
-  const handleChangePin = (e: React.FormEvent) => {
+  const handleChangePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPin.trim().length < 4) {
       alert("New PIN must be at least 4 characters long.");
       return;
     }
-    localStorage.setItem("meraresto_super_admin_pin", newPin.trim());
-    setPinChangeSuccess(true);
-    setTimeout(() => {
-      setPinChangeSuccess(false);
-      setIsChangePinModalOpen(false);
-      setNewPin("");
-    }, 1800);
+
+    setIsUpdatingPin(true);
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPin: newPin.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setPinChangeSuccess(true);
+        setPinChangeMessage(data.message || "Master PIN saved successfully!");
+        setTimeout(() => {
+          setPinChangeSuccess(false);
+          setIsChangePinModalOpen(false);
+          setNewPin("");
+        }, 1800);
+      } else {
+        alert(data.error || "Failed to update PIN");
+      }
+    } catch {
+      alert("Network error: Could not reach server to update PIN.");
+    } finally {
+      setIsUpdatingPin(false);
+    }
   };
 
   useEffect(() => {
@@ -256,7 +292,10 @@ export default function SuperAdminPortalPage() {
               </div>
 
               <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800 text-[11px] text-zinc-400 flex items-center justify-between">
-                <span>Default Master Key:</span>
+                <span className="flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-[#39ff14]" />
+                  <span>Default Master Key:</span>
+                </span>
                 <code className="text-[#39ff14] font-mono font-bold bg-[#0B192C] px-2 py-0.5 rounded-md border border-[#39ff14]/30">
                   admin786
                 </code>
@@ -264,10 +303,20 @@ export default function SuperAdminPortalPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#39ff14] hover:bg-[#32e010] text-[#0B192C] font-black text-xs py-3 rounded-xl shadow-lg shadow-[#39ff14]/20 cursor-pointer"
+                disabled={isVerifying}
+                className="w-full bg-[#39ff14] hover:bg-[#32e010] text-[#0B192C] font-black text-xs py-3 rounded-xl shadow-lg shadow-[#39ff14]/20 cursor-pointer disabled:opacity-60"
               >
-                <Unlock className="w-4 h-4 mr-1.5" />
-                <span>Unlock Super Admin Portal</span>
+                {isVerifying ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="sm" />
+                    <span>Verifying Database Key...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Unlock className="w-4 h-4 mr-1.5" />
+                    <span>Unlock Super Admin Portal</span>
+                  </>
+                )}
               </Button>
             </form>
 
@@ -625,14 +674,15 @@ export default function SuperAdminPortalPage() {
         maxWidth="sm"
       >
         <form onSubmit={handleChangePin} className="space-y-4">
-          <p className="text-xs text-zinc-500">
-            Set a new private security PIN for unlocking the Super Admin platform portal.
-          </p>
+          <div className="p-2.5 rounded-xl bg-[#0B192C] border border-[#39ff14]/30 flex items-center gap-2 text-xs text-zinc-300">
+            <Database className="w-4 h-4 text-[#39ff14] shrink-0" />
+            <span>PIN changes are stored in the platform database across all devices.</span>
+          </div>
 
           {pinChangeSuccess && (
             <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Master PIN successfully updated!</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{pinChangeMessage || "Master PIN successfully updated in database!"}</span>
             </div>
           )}
 
@@ -648,6 +698,7 @@ export default function SuperAdminPortalPage() {
               onChange={(e) => setNewPin(e.target.value)}
               className="text-xs font-mono font-bold"
               required
+              disabled={isUpdatingPin}
             />
           </div>
 
@@ -657,14 +708,23 @@ export default function SuperAdminPortalPage() {
               variant="secondary"
               onClick={() => setIsChangePinModalOpen(false)}
               className="w-1/2 text-xs font-bold"
+              disabled={isUpdatingPin}
             >
               Cancel
             </Button>
             <Button
               type="submit"
+              disabled={isUpdatingPin}
               className="w-1/2 bg-[#0B192C] hover:bg-black text-[#39ff14] border border-[#39ff14]/40 font-bold text-xs"
             >
-              Update PIN
+              {isUpdatingPin ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Spinner size="sm" />
+                  <span>Saving...</span>
+                </div>
+              ) : (
+                <span>Save to Database</span>
+              )}
             </Button>
           </div>
         </form>
