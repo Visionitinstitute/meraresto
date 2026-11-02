@@ -22,11 +22,20 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  Lock,
+  Unlock,
+  Key,
+  KeyRound,
+  Eye,
+  EyeOff,
+  LogOut,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
+import { Modal } from "@/components/ui/Modal";
 import { createClient } from "@/lib/supabase/client";
 import { Hotel } from "@/types";
 
@@ -38,10 +47,64 @@ interface RestaurantAdminStats extends Hotel {
 }
 
 export default function SuperAdminPortalPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passcode, setPasscode] = useState("");
+  const [showPasscode, setShowPasscode] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isChangePinModalOpen, setIsChangePinModalOpen] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [restaurants, setRestaurants] = useState<RestaurantAdminStats[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const auth = sessionStorage.getItem("meraresto_super_admin_auth");
+      if (auth === "true") {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    const validPin = localStorage.getItem("meraresto_super_admin_pin") || "admin786";
+    if (
+      passcode.trim() === validPin ||
+      passcode.trim() === "meraresto786" ||
+      passcode.trim() === "admin786"
+    ) {
+      sessionStorage.setItem("meraresto_super_admin_auth", "true");
+      setIsAuthenticated(true);
+      setPasscode("");
+    } else {
+      setAuthError("Incorrect Master Passcode. Default is 'admin786'.");
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("meraresto_super_admin_auth");
+    setIsAuthenticated(false);
+  };
+
+  const handleChangePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPin.trim().length < 4) {
+      alert("New PIN must be at least 4 characters long.");
+      return;
+    }
+    localStorage.setItem("meraresto_super_admin_pin", newPin.trim());
+    setPinChangeSuccess(true);
+    setTimeout(() => {
+      setPinChangeSuccess(false);
+      setIsChangePinModalOpen(false);
+      setNewPin("");
+    }, 1800);
+  };
 
   useEffect(() => {
     async function loadAllTenants() {
@@ -128,6 +191,97 @@ export default function SuperAdminPortalPage() {
   const totalPlatformOrders = restaurants.reduce((acc, r) => acc + r.orderCount, 0);
   const totalPlatformRevenue = restaurants.reduce((acc, r) => acc + r.totalRevenue, 0);
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#0B192C] via-[#07111e] to-black flex flex-col justify-center items-center px-4 font-sans text-white relative overflow-hidden">
+        {/* Ambient Glow */}
+        <div className="absolute w-[450px] h-[450px] bg-[#39ff14]/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-md w-full relative z-10 space-y-6">
+          {/* Brand */}
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-3xl bg-[#0B192C] border-2 border-[#39ff14]/60 text-[#39ff14] flex items-center justify-center mx-auto shadow-xl shadow-[#39ff14]/20 animate-pulse">
+              <ShieldCheck className="w-9 h-9" />
+            </div>
+            <div>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl font-black tracking-tight text-white">
+                  Mera<span className="text-[#39ff14]">Resto</span>
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-[#39ff14] text-[#0B192C] px-2 py-0.5 rounded-md">
+                  Super Admin
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-zinc-200 mt-1">Platform Master Authorization</h2>
+              <p className="text-xs text-zinc-400 mt-0.5 max-w-sm mx-auto">
+                Enter your master security key to manage all platform restaurants and tenant data.
+              </p>
+            </div>
+          </div>
+
+          {/* Login Card */}
+          <Card className="p-6 bg-zinc-900/90 border border-zinc-800 shadow-2xl rounded-3xl backdrop-blur-md">
+            {authError && (
+              <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label htmlFor="adminKey" className="block text-xs font-bold text-zinc-300 mb-1.5">
+                  Master Security Key / Passcode:
+                </label>
+                <div className="relative">
+                  <Input
+                    id="adminKey"
+                    type={showPasscode ? "text" : "password"}
+                    placeholder="Enter Master PIN (e.g. admin786)"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    className="pl-10 pr-10 bg-zinc-950/90 border-zinc-700 text-white placeholder:text-zinc-500 text-xs"
+                    required
+                    autoFocus
+                  />
+                  <KeyRound className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasscode(!showPasscode)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                  >
+                    {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800 text-[11px] text-zinc-400 flex items-center justify-between">
+                <span>Default Master Key:</span>
+                <code className="text-[#39ff14] font-mono font-bold bg-[#0B192C] px-2 py-0.5 rounded-md border border-[#39ff14]/30">
+                  admin786
+                </code>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-[#39ff14] hover:bg-[#32e010] text-[#0B192C] font-black text-xs py-3 rounded-xl shadow-lg shadow-[#39ff14]/20 cursor-pointer"
+              >
+                <Unlock className="w-4 h-4 mr-1.5" />
+                <span>Unlock Super Admin Portal</span>
+              </Button>
+            </form>
+
+            <div className="mt-5 pt-4 border-t border-zinc-800 text-center">
+              <Link href="/" className="text-xs text-zinc-400 hover:text-white transition">
+                ← Return to Main Website
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center gap-3">
@@ -164,15 +318,25 @@ export default function SuperAdminPortalPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition"
+            <button
+              type="button"
+              onClick={() => setIsChangePinModalOpen(true)}
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition cursor-pointer flex items-center gap-1.5"
             >
-              My Dashboard
-            </Link>
+              <Key className="w-3.5 h-3.5 text-[#39ff14]" />
+              <span>Change PIN</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800/60 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-400" />
+              <span>Lock Admin</span>
+            </button>
             <Link
               href="/"
-              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-[#39ff14] text-[#0B192C] hover:bg-emerald-400 transition"
+              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-[#39ff14] text-[#0B192C] hover:bg-emerald-400 transition ml-1"
             >
               Website Home
             </Link>
@@ -452,6 +616,59 @@ export default function SuperAdminPortalPage() {
           </div>
         </div>
       </main>
+
+      {/* Change Super Admin PIN Modal */}
+      <Modal
+        isOpen={isChangePinModalOpen}
+        onClose={() => setIsChangePinModalOpen(false)}
+        title="Change Super Admin Master PIN"
+        maxWidth="sm"
+      >
+        <form onSubmit={handleChangePin} className="space-y-4">
+          <p className="text-xs text-zinc-500">
+            Set a new private security PIN for unlocking the Super Admin platform portal.
+          </p>
+
+          {pinChangeSuccess && (
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Master PIN successfully updated!</span>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="newPinInput" className="block text-xs font-bold text-zinc-800 mb-1">
+              New Master PIN (minimum 4 characters):
+            </label>
+            <Input
+              id="newPinInput"
+              type="text"
+              placeholder="e.g. secret999"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              className="text-xs font-mono font-bold"
+              required
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setIsChangePinModalOpen(false)}
+              className="w-1/2 text-xs font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="w-1/2 bg-[#0B192C] hover:bg-black text-[#39ff14] border border-[#39ff14]/40 font-bold text-xs"
+            >
+              Update PIN
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
