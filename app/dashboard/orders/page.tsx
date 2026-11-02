@@ -17,6 +17,11 @@ import {
   Lock,
   ArrowRight,
   Sparkles,
+  Bell,
+  Droplets,
+  Receipt,
+  Utensils,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -34,10 +39,22 @@ interface OrderWithItems extends Order {
   order_items?: OrderItem[];
 }
 
+export interface TableServiceCall {
+  id: string;
+  hotel_id: string;
+  table_number: number;
+  request_type: "call_waiter" | "water" | "bill" | "cutlery" | "clean" | "other";
+  diner_name?: string | null;
+  note?: string | null;
+  status: "active" | "attended" | "cancelled";
+  created_at: string;
+}
+
 export default function ManagerOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<TableServiceCall[]>([]);
   const [activeTab, setActiveTab] = useState<"pending" | "active" | "completed" | "all">("pending");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -101,6 +118,17 @@ export default function ManagerOrdersPage() {
               .order("created_at", { ascending: false });
 
             setOrders(ordersData || []);
+
+            // Load active table service requests
+            try {
+              const sRes = await fetch(`/api/service-request?hotel_id=${hotelData.id}`);
+              const sData = await sRes.json();
+              if (sData.requests) {
+                setServiceRequests(sData.requests);
+              }
+            } catch {
+              // Service request fetch fallback
+            }
           }
         }
       } catch (err) {
@@ -121,6 +149,17 @@ export default function ManagerOrdersPage() {
 
     const channel = supabase
       .channel(`hotel-orders-${hotel.id}`)
+      .on(
+        "broadcast",
+        { event: "service_request" },
+        (payload) => {
+          if (payload.payload) {
+            const newReq = payload.payload as TableServiceCall;
+            setServiceRequests((prev) => [newReq, ...prev.filter((r) => r.id !== newReq.id)]);
+            playNewOrderBeep();
+          }
+        }
+      )
       .on(
         "postgres_changes",
         {
@@ -200,6 +239,24 @@ export default function ManagerOrdersPage() {
       console.error("Error updating order status:", err);
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleMarkAttended = async (requestId: string) => {
+    if (!hotel) return;
+    setServiceRequests((prev) => prev.filter((r) => r.id !== requestId));
+    try {
+      await fetch("/api/service-request", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: requestId,
+          hotel_id: hotel.id,
+          status: "attended",
+        }),
+      });
+    } catch (err) {
+      console.error("Error marking request attended:", err);
     }
   };
 
@@ -360,6 +417,81 @@ export default function ManagerOrdersPage() {
             Upgrade to Pro Resto (Unlock KDS) <ArrowRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         </div>
+      )}
+
+      {/* ACTIVE TABLE CALLS & SERVICE REQUESTS ALERT BANNER */}
+      {serviceRequests.length > 0 && (
+        <Card className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-400/90 rounded-2xl shadow-sm animate-in fade-in">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-[#0B192C] text-[#39ff14] border border-[#39ff14]/40 flex items-center justify-center font-bold shadow-xs animate-bounce">
+                <Bell className="w-4 h-4 text-[#39ff14]" />
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-zinc-950 flex items-center gap-2">
+                  <span>Active Table Calls & Service Requests</span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500 text-white">
+                    {serviceRequests.length} {serviceRequests.length === 1 ? "Call" : "Calls"} Waiting
+                  </span>
+                </h3>
+                <p className="text-[11px] text-zinc-500">
+                  Diners at your tables tapped their phone to request assistance or their bill.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {serviceRequests.map((req) => (
+              <div
+                key={req.id}
+                className="p-3 bg-white rounded-xl border border-amber-200/90 shadow-2xs flex items-center justify-between gap-2.5"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#0B192C] text-[#39ff14] flex flex-col items-center justify-center shrink-0 border border-[#39ff14]/30">
+                    <span className="text-[9px] uppercase font-bold text-zinc-400">T#</span>
+                    <span className="text-sm font-black text-[#39ff14] -mt-1">{req.table_number}</span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-zinc-900 truncate">
+                        {req.request_type === "call_waiter" && "🙋‍♂️ Call Waiter"}
+                        {req.request_type === "water" && "💧 Water Glasses"}
+                        {req.request_type === "bill" && "🧾 Final Bill"}
+                        {req.request_type === "cutlery" && "🍴 Extra Cutlery"}
+                        {req.request_type === "clean" && "🧼 Clean Table"}
+                        {req.request_type === "other" && "💬 Special Request"}
+                      </span>
+                    </div>
+                    {req.diner_name && (
+                      <span className="text-[10px] font-semibold text-emerald-700 block truncate">
+                        {req.diner_name}
+                      </span>
+                    )}
+                    {req.note && (
+                      <span className="text-[10px] text-zinc-500 italic block truncate">
+                        &quot;{req.note}&quot;
+                      </span>
+                    )}
+                    <span className="text-[9px] text-zinc-400 block">
+                      {new Date(req.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  onClick={() => handleMarkAttended(req.id)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1 px-2.5 h-auto shrink-0 shadow-xs cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5 mr-1" />
+                  <span>Attended</span>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {/* Filter Tabs */}

@@ -13,11 +13,13 @@ import {
   Trash2,
   X,
   ArrowRight,
+  Bell,
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { useCartStore } from "@/store/useCartStore";
 import { Hotel, Category, MenuItem } from "@/types";
+import { CallWaiterModal } from "@/components/menu/CallWaiterModal";
 
 interface CustomerMenuViewProps {
   hotel: Hotel;
@@ -40,6 +42,7 @@ export default function CustomerMenuView({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [isCallWaiterOpen, setIsCallWaiterOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const {
@@ -88,8 +91,8 @@ export default function CustomerMenuView({
       <header className="bg-white border-b border-zinc-200/80 sticky top-0 z-30 shadow-xs">
         <div className="max-w-2xl mx-auto px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-orange-500/20">
-              <UtensilsCrossed className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-[#0B192C] text-[#39ff14] border border-[#39ff14]/40 flex items-center justify-center shrink-0 shadow-xs">
+              <UtensilsCrossed className="w-5 h-5 text-[#39ff14]" />
             </div>
             <div className="min-w-0">
               <h1 className="text-base sm:text-lg font-black text-zinc-900 truncate">
@@ -111,12 +114,23 @@ export default function CustomerMenuView({
             </div>
           </div>
 
-          {/* Table Badge */}
-          {tableNumber && (
-            <div className="shrink-0 px-3 py-1.5 rounded-xl bg-orange-100 text-orange-800 text-xs font-extrabold border border-orange-200">
-              Table {tableNumber}
-            </div>
-          )}
+          {/* Action Buttons: Call Waiter & Table Badge */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsCallWaiterOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0B192C] hover:bg-black text-[#39ff14] border border-[#39ff14]/40 text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+            >
+              <Bell className="w-3.5 h-3.5 text-[#39ff14] animate-pulse" />
+              <span>Call Waiter</span>
+            </button>
+
+            {tableNumber && (
+              <div className="shrink-0 px-2.5 py-1.5 rounded-xl bg-zinc-100 text-zinc-900 text-xs font-black border border-zinc-200">
+                T#{tableNumber}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -389,13 +403,13 @@ export default function CustomerMenuView({
               </div>
               <div className="flex justify-between items-center text-base font-black">
                 <span>Grand Total</span>
-                <span className="text-orange-600">₹{totalCartAmount}</span>
+                <span className="text-zinc-950 font-black">₹{totalCartAmount}</span>
               </div>
 
               <Link
                 href={`/menu/${hotel.slug}/checkout`}
                 onClick={() => setIsCartDrawerOpen(false)}
-                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm shadow-md shadow-orange-600/30 transition mt-2"
+                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#0B192C] hover:bg-black text-[#39ff14] border border-[#39ff14]/40 font-bold text-sm shadow-md shadow-[#39ff14]/15 transition mt-2"
               >
                 Proceed to Checkout <ArrowRight className="w-4 h-4" />
               </Link>
@@ -403,6 +417,15 @@ export default function CustomerMenuView({
           </div>
         </div>
       )}
+
+      {/* Call Waiter & Table Service Modal */}
+      <CallWaiterModal
+        isOpen={isCallWaiterOpen}
+        onClose={() => setIsCallWaiterOpen(false)}
+        hotelId={hotel.id}
+        hotelName={hotel.name}
+        tableNumber={tableNumber || 1}
+      />
     </div>
   );
 }

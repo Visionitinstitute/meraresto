@@ -27,6 +27,7 @@ import {
   requestNotificationPermission,
   getNotificationPermissionStatus,
 } from "@/lib/notifications";
+import { CallWaiterModal } from "@/components/menu/CallWaiterModal";
 
 interface ExtendedOrder extends Order {
   hotels?: {
@@ -70,6 +71,7 @@ export default function OrderStatusClient({
   // Web Notification State
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
   const [notifToast, setNotifToast] = useState<{ title: string; body: string } | null>(null);
+  const [isCallWaiterOpen, setIsCallWaiterOpen] = useState(false);
 
   useEffect(() => {
     setNotifPermission(getNotificationPermissionStatus());
@@ -244,10 +246,19 @@ export default function OrderStatusClient({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsCallWaiterOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0B192C] hover:bg-black text-[#39ff14] border border-[#39ff14]/40 text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+            >
+              <Bell className="w-3.5 h-3.5 text-[#39ff14] animate-pulse" />
+              <span>Call Waiter</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => playChimeSound("bell")}
               title="Test Table Chime Sound"
               aria-label="Test Table Chime Sound"
-              className="p-1.5 rounded-lg border border-zinc-200 hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900 cursor-pointer"
+              className="p-1.5 rounded-lg border border-zinc-200 hover:bg-zinc-50 text-zinc-600 hover:text-zinc-900 cursor-pointer hidden sm:block"
             >
               <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
             </button>
@@ -383,7 +394,7 @@ export default function OrderStatusClient({
         {/* ------------------------------------------------------------- */}
         <Card className="p-5 sm:p-6 space-y-4">
           <h2 className="text-sm font-bold text-zinc-900 border-b border-zinc-100 pb-2 flex items-center gap-2">
-            <UtensilsCrossed className="w-4 h-4 text-orange-600" />
+            <UtensilsCrossed className="w-4 h-4 text-emerald-600" />
             Order Items Details
           </h2>
 
@@ -394,7 +405,7 @@ export default function OrderStatusClient({
                 className="py-2.5 flex items-center justify-between text-xs sm:text-sm"
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-orange-600">
+                  <span className="font-extrabold text-emerald-600">
                     {item.quantity}x
                   </span>
                   <span className="font-medium text-zinc-900">
@@ -417,7 +428,7 @@ export default function OrderStatusClient({
 
           <div className="pt-3 border-t border-zinc-200 flex items-center justify-between text-base font-black">
             <span>Total Bill Amount</span>
-            <span className="text-orange-600 text-lg">₹{order.total_amount}</span>
+            <span className="text-zinc-950 font-black text-lg">₹{order.total_amount}</span>
           </div>
         </Card>
 
@@ -520,6 +531,15 @@ export default function OrderStatusClient({
           </Card>
         )}
       </main>
+
+      {/* Call Waiter & Table Service Modal */}
+      <CallWaiterModal
+        isOpen={isCallWaiterOpen}
+        onClose={() => setIsCallWaiterOpen(false)}
+        hotelId={order.hotel_id}
+        hotelName={order.hotels?.name || "Restaurant"}
+        tableNumber={order.table_number}
+      />
     </div>
   );
 }
